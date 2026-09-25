@@ -5,13 +5,13 @@ on:
     # Every Thursday at 11:59 PM IST = 18:29 UTC
     - cron: "29 18 * * 4"
 
-  # Manual trigger from GitHub Actions
+  # Manual trigger
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# Prevent multiple report workflows from pushing to main simultaneously
+# Prevent two report workflows from pushing at the same time
 concurrency:
   group: weekly-progress-report
   cancel-in-progress: false
@@ -21,99 +21,110 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --------------------------------------------------
-      # 1. Checkout repository
-      # --------------------------------------------------
-      - name: Checkout Repository with Full Git History
+
+      # -----------------------------------------
+      # Checkout repository
+      # -----------------------------------------
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # --------------------------------------------------
-      # 2. Setup Python
-      # --------------------------------------------------
+      # -----------------------------------------
+      # Setup Python
+      # -----------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      # --------------------------------------------------
-      # 3. Install dependencies
-      # --------------------------------------------------
+      # -----------------------------------------
+      # Install dependencies
+      # -----------------------------------------
       - name: Install PDF & Graph Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install reportlab matplotlib
 
-      # --------------------------------------------------
-      # 4. Generate weekly PDF
-      # --------------------------------------------------
+      # -----------------------------------------
+      # Generate PDF
+      # -----------------------------------------
       - name: Generate Weekly PDF Report
         run: |
           python generate_report.py weekly
 
-      # --------------------------------------------------
-      # 5. Move PDF, commit and push
-      # --------------------------------------------------
-      - name: Move PDF to Weekly Reports Directory & Commit
+      # -----------------------------------------
+      # Commit & Push PDF
+      # -----------------------------------------
+      - name: Move PDF and Commit
         shell: bash
         run: |
           set -e
 
-          echo "📁 Creating weekly_reports directory..."
+          echo "Creating weekly_reports directory..."
           mkdir -p weekly_reports
 
-          echo "📄 Moving generated PDF..."
+          echo "Moving generated PDF..."
           mv *_Weekly_Progress_Report_Form-3_*.pdf weekly_reports/
 
-          echo "🔧 Configuring Git..."
+          echo "Configuring Git..."
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          echo "➕ Adding report to Git..."
+          echo "Adding PDF..."
           git add weekly_reports/
 
-          # ------------------------------------------------
-          # Check whether there is anything to commit
-          # ------------------------------------------------
+          # -----------------------------------------
+          # Check for changes
+          # -----------------------------------------
           if git diff --staged --quiet; then
-            echo "ℹ️ No new changes or reports to commit."
+            echo "No new report to commit."
             exit 0
           fi
 
-          echo "💾 Creating commit..."
+          # -----------------------------------------
+          # Create commit
+          # -----------------------------------------
+          echo "Creating commit..."
           git commit -m "docs: archive Form-3 weekly progress report [skip ci]"
 
-          # ------------------------------------------------
-          # Synchronize with latest remote main
-          # ------------------------------------------------
-          echo "🔄 Fetching latest main branch..."
+          # -----------------------------------------
+          # Get latest remote main
+          # -----------------------------------------
+          echo "Fetching latest main..."
           git fetch origin main
 
-          echo "🔀 Rebasing local commit on latest main..."
+          echo "Rebasing on latest main..."
           git rebase origin/main
 
-          # ------------------------------------------------
-          # Push with retry mechanism
-          # ------------------------------------------------
-          echo "🚀 Pushing report to GitHub..."
+          # -----------------------------------------
+          # Push with retry
+          # -----------------------------------------
+          echo "Starting push..."
 
           for attempt in 1 2 3
           do
-            echo "Push attempt $attempt..."
+            echo "========================================="
+            echo "Push attempt: $attempt"
+            echo "========================================="
 
             if git push origin main; then
-              echo "✅ Report successfully pushed to main."
+              echo "========================================="
+              echo "SUCCESS: PDF pushed to GitHub"
+              echo "========================================="
               exit 0
             fi
 
             if [ "$attempt" -eq 3 ]; then
-              echo "❌ Push failed after 3 attempts."
+              echo "========================================="
+              echo "ERROR: Push failed after 3 attempts"
+              echo "========================================="
               exit 1
             fi
 
-            echo "⚠️ Push failed. Updating from remote before retry..."
+            echo "Push rejected."
+            echo "Remote main changed. Updating..."
 
             git fetch origin main
             git rebase origin/main
