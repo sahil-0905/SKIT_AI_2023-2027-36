@@ -1,15 +1,11 @@
-def get_complexity(code):
-
+def get_complexity(code: str) -> str:
     loops = code.count("for ") + code.count("while ")
 
-    if loops == 0:
-        return "O(1)"
+    complexity_map = {
+        0: "O(1)",
+        1: "O(n)",
+        2: "O(n²)",
+        3: "O(n³)"
+    }
 
-    elif loops == 1:
-        return "O(n)"
-
-    elif loops == 2:
-        return "O(n²)"
-
-    else:
-        return "O(n³)"
+    return complexity_map.get(loops, f"O(n^{loops})")
