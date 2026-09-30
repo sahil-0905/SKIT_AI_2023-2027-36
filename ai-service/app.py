@@ -1,5 +1,7 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import Dict, Any
+import logging
 
 from code_analysis.metrics import (
     count_lines,
@@ -7,89 +9,115 @@ from code_analysis.metrics import (
     count_loops,
     count_conditions,
 )
-
 from code_analysis.complexity import get_complexity
 from behavioural.monitor import calculate_risk
+
+# --------------------------------
+# Logging
+# --------------------------------
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="AI Interview Coding Platform API",
     description="Code Analysis and Behaviour Monitoring Service",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 
-# ==========================
+# --------------------------------
 # Request Models
-# ==========================
+# --------------------------------
 
 class CodeRequest(BaseModel):
     code: str
 
 
 class BehaviourRequest(BaseModel):
-    tab_switches: int = 0
-    copy_paste_count: int = 0
-    idle_time: int = 0
+    tab_switches: int = Field(0, ge=0)
+    copy_paste_count: int = Field(0, ge=0)
+    idle_time: int = Field(0, ge=0)
 
 
-# ==========================
+# --------------------------------
 # Health Check
-# ==========================
+# --------------------------------
 
 @app.get("/")
-def home():
+async def home() -> Dict[str, str]:
     return {
         "status": "success",
         "message": "AI Service Running"
     }
 
 
-# ==========================
-# Code Analysis API
-# ==========================
+# --------------------------------
+# Code Analysis
+# --------------------------------
 
 @app.post("/analyze")
-def analyze_code(request: CodeRequest):
+async def analyze_code(request: CodeRequest) -> Dict[str, Any]:
+    try:
+        code = request.code.strip()
 
-    code = request.code
+        if not code:
+            raise HTTPException(
+                status_code=400,
+                detail="Code cannot be empty"
+            )
 
-    lines = count_lines(code)
-    functions = count_functions(code)
-    loops = count_loops(code)
-    conditions = count_conditions(code)
-    complexity = get_complexity(code)
-
-    return {
-        "status": "success",
-        "analysis": {
-            "lines": lines,
-            "functions": functions,
-            "loops": loops,
-            "conditions": conditions,
-            "complexity": complexity
+        analysis = {
+            "lines": count_lines(code),
+            "functions": count_functions(code),
+            "loops": count_loops(code),
+            "conditions": count_conditions(code),
+            "complexity": get_complexity(code),
         }
-    }
+
+        return {
+            "status": "success",
+            "analysis": analysis
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logging.exception("Code analysis failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis failed: {str(e)}"
+        )
 
 
-# ==========================
-# Behaviour Monitoring API
-# ==========================
+# --------------------------------
+# Behaviour Monitoring
+# --------------------------------
 
 @app.post("/behaviour")
-def behaviour_monitor(request: BehaviourRequest):
+async def behaviour_monitor(
+    request: BehaviourRequest
+) -> Dict[str, Any]:
 
-    risk_level = calculate_risk(
-        request.tab_switches,
-        request.copy_paste_count,
-        request.idle_time,
-    )
+    try:
+        risk_level = calculate_risk(
+            request.tab_switches,
+            request.copy_paste_count,
+            request.idle_time,
+        )
 
-    return {
-        "status": "success",
-        "behaviour": {
-            "tab_switches": request.tab_switches,
-            "copy_paste_count": request.copy_paste_count,
-            "idle_time": request.idle_time,
-            "risk_level": risk_level
+        return {
+            "status": "success",
+            "behaviour": {
+                "tab_switches": request.tab_switches,
+                "copy_paste_count": request.copy_paste_count,
+                "idle_time": request.idle_time,
+                "risk_level": risk_level,
+            },
         }
-    }
+
+    except Exception as e:
+        logging.exception("Behaviour monitoring failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Behaviour monitoring failed: {str(e)}"
+        )
