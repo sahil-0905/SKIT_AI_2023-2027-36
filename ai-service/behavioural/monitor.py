@@ -1,17 +1,23 @@
-def calculate_risk(tab_switches,
-                   copy_paste_count,
-                   idle_time):
+def calculate_risk(
+    tab_switches: int,
+    copy_paste_count: int,
+    idle_time: int
+) -> str:
 
-    score = 0
+    TAB_SWITCH_WEIGHT = 2
+    COPY_PASTE_WEIGHT = 3
+    IDLE_TIME_WEIGHT = 1
 
-    score += tab_switches * 2
-    score += copy_paste_count * 3
-    score += idle_time
+    score = (
+        tab_switches * TAB_SWITCH_WEIGHT
+        + copy_paste_count * COPY_PASTE_WEIGHT
+        + idle_time * IDLE_TIME_WEIGHT
+    )
 
     if score < 10:
         return "Low"
 
-    elif score < 20:
+    if score < 20:
         return "Medium"
 
     return "High"
