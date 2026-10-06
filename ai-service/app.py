@@ -13,9 +13,19 @@ from code_analysis.complexity import get_complexity
 from behavioural.monitor import calculate_risk
 
 # --------------------------------
-# Logging
+# Logging Configuration
 # --------------------------------
-logging.basicConfig(level=logging.INFO)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+# --------------------------------
+# FastAPI App
+# --------------------------------
 
 app = FastAPI(
     title="AI Interview Coding Platform API",
@@ -23,23 +33,36 @@ app = FastAPI(
     version="1.0.0",
 )
 
-
 # --------------------------------
 # Request Models
 # --------------------------------
 
 class CodeRequest(BaseModel):
-    code: str
+    code: str = Field(..., min_length=1)
 
 
 class BehaviourRequest(BaseModel):
-    tab_switches: int = Field(0, ge=0)
-    copy_paste_count: int = Field(0, ge=0)
-    idle_time: int = Field(0, ge=0)
+    tab_switches: int = Field(default=0, ge=0)
+    copy_paste_count: int = Field(default=0, ge=0)
+    idle_time: int = Field(default=0, ge=0)
 
 
 # --------------------------------
-# Health Check
+# Helper Functions
+# --------------------------------
+
+def analyze_code_metrics(code: str) -> Dict[str, Any]:
+    return {
+        "lines": count_lines(code),
+        "functions": count_functions(code),
+        "loops": count_loops(code),
+        "conditions": count_conditions(code),
+        "complexity": get_complexity(code),
+    }
+
+
+# --------------------------------
+# Routes
 # --------------------------------
 
 @app.get("/")
@@ -50,48 +73,31 @@ async def home() -> Dict[str, str]:
     }
 
 
-# --------------------------------
-# Code Analysis
-# --------------------------------
-
 @app.post("/analyze")
 async def analyze_code(request: CodeRequest) -> Dict[str, Any]:
+    code = request.code.strip()
+
+    if not code:
+        raise HTTPException(
+            status_code=400,
+            detail="Code cannot be empty"
+        )
+
     try:
-        code = request.code.strip()
-
-        if not code:
-            raise HTTPException(
-                status_code=400,
-                detail="Code cannot be empty"
-            )
-
-        analysis = {
-            "lines": count_lines(code),
-            "functions": count_functions(code),
-            "loops": count_loops(code),
-            "conditions": count_conditions(code),
-            "complexity": get_complexity(code),
-        }
+        analysis = analyze_code_metrics(code)
 
         return {
             "status": "success",
             "analysis": analysis
         }
 
-    except HTTPException:
-        raise
-
     except Exception as e:
-        logging.exception("Code analysis failed")
+        logger.exception("Code analysis failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Analysis failed: {str(e)}"
-        )
+            detail="Code analysis failed"
+        ) from e
 
-
-# --------------------------------
-# Behaviour Monitoring
-# --------------------------------
 
 @app.post("/behaviour")
 async def behaviour_monitor(
@@ -100,9 +106,9 @@ async def behaviour_monitor(
 
     try:
         risk_level = calculate_risk(
-            request.tab_switches,
-            request.copy_paste_count,
-            request.idle_time,
+            tab_switches=request.tab_switches,
+            copy_paste_count=request.copy_paste_count,
+            idle_time=request.idle_time,
         )
 
         return {
@@ -116,8 +122,8 @@ async def behaviour_monitor(
         }
 
     except Exception as e:
-        logging.exception("Behaviour monitoring failed")
+        logger.exception("Behaviour monitoring failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Behaviour monitoring failed: {str(e)}"
-        )
+            detail="Behaviour monitoring failed"
+        ) from e
