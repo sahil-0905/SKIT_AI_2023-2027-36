@@ -1,14 +1,45 @@
+import ast
+
+
+def parse_code(code):
+    try:
+        return ast.parse(code)
+    except SyntaxError:
+        return None
+
+
 def count_lines(code):
     return len(code.splitlines())
 
 
 def count_functions(code):
-    return code.count("def ")
+    tree = parse_code(code)
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        for node in ast.walk(tree)
+    )
 
 
 def count_loops(code):
-    return code.count("for ") + code.count("while ")
+    tree = parse_code(code)
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, (ast.For, ast.While, ast.AsyncFor))
+        for node in ast.walk(tree)
+    )
 
 
 def count_conditions(code):
-    return code.count("if ")
+    tree = parse_code(code)
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, ast.If)
+        for node in ast.walk(tree)
+    )
