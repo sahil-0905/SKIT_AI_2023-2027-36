@@ -10,6 +10,8 @@ from code_analysis.metrics import (
     count_conditions,
 )
 from code_analysis.complexity import get_complexity
+from code_analysis.validate import validate_code
+from code_analysis.quality import analyze_code_quality
 from behavioural.monitor import calculate_risk
 
 # --------------------------------
@@ -73,30 +75,40 @@ async def home() -> Dict[str, str]:
     }
 
 
+
 @app.post("/analyze")
 async def analyze_code(request: CodeRequest) -> Dict[str, Any]:
-    code = request.code.strip()
+    code = request.code
 
-    if not code:
+    # Step 1: Validate code before analysis
+    validation = validate_code(code)
+
+    if not validation["valid"]:
         raise HTTPException(
             status_code=400,
-            detail="Code cannot be empty"
+            detail={
+                "message": validation["message"],
+                "errors": validation["errors"],
+            },
         )
 
+    # Step 2: Analyze only valid Python code
     try:
-        analysis = analyze_code_metrics(code)
+        analysis = analyze_code_metrics(code.strip())
 
         return {
             "status": "success",
-            "analysis": analysis
+            "validation": validation,
+            "analysis": analysis,
         }
 
     except Exception as e:
         logger.exception("Code analysis failed")
         raise HTTPException(
             status_code=500,
-            detail="Code analysis failed"
+            detail="Code analysis failed",
         ) from e
+
 
 
 @app.post("/behaviour")
@@ -126,4 +138,38 @@ async def behaviour_monitor(
         raise HTTPException(
             status_code=500,
             detail="Behaviour monitoring failed"
+        ) from e
+
+
+@app.post("/review")
+async def review_code(request: CodeRequest) -> Dict[str, Any]:
+    code = request.code
+
+    # Step 1: Validate code
+    validation = validate_code(code)
+
+    if not validation["valid"]:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": validation["message"],
+                "errors": validation["errors"],
+            },
+        )
+
+    # Step 2: Perform code quality analysis
+    try:
+        review = analyze_code_quality(code)
+
+        return {
+            "status": "success",
+            "validation": validation,
+            "review": review,
+        }
+
+    except Exception as e:
+        logger.exception("Code review failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Code review failed",
         ) from e
