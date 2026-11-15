@@ -2,33 +2,57 @@
 import ast
 
 
-def analyze_code(code):
+def parse_code(code):
     try:
-        tree = ast.parse(code)
+        return ast.parse(code)
     except SyntaxError:
-        return {
-            "lines": len(code.splitlines()),
-            "functions": 0,
-            "loops": 0,
-            "conditions": 0
-        }
+        return None
 
-    stats = {
-        "lines": len(code.splitlines()),
-        "functions": 0,
-        "loops": 0,
-        "conditions": 0
+
+def count_lines(code):
+    return len(code.splitlines())
+
+
+def count_functions(code):
+    tree = parse_code(code)
+
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        for node in ast.walk(tree)
+    )
+
+
+def count_loops(code):
+    tree = parse_code(code)
+
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, (ast.For, ast.While, ast.AsyncFor))
+        for node in ast.walk(tree)
+    )
+
+
+def count_conditions(code):
+    tree = parse_code(code)
+
+    if tree is None:
+        return 0
+
+    return sum(
+        isinstance(node, ast.If)
+        for node in ast.walk(tree)
+    )
+
+
+def analyze_code(code):
+    return {
+        "lines": count_lines(code),
+        "functions": count_functions(code),
+        "loops": count_loops(code),
+        "conditions": count_conditions(code)
     }
-
-    for node in ast.walk(tree):
-
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            stats["functions"] += 1
-
-        elif isinstance(node, (ast.For, ast.While, ast.AsyncFor)):
-            stats["loops"] += 1
-
-        elif isinstance(node, ast.If):
-            stats["conditions"] += 1
-
-    return stats
